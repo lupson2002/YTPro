@@ -45,17 +45,12 @@ public class BinaryStreamManager {
         if (!WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_ARRAY_BUFFER)) {
             Log.e("YTPRO_STREAM", "ArrayBuffer not supported on this device.");
             Toast.makeText(context, "ArrayBuffer not supported on this device.", Toast.LENGTH_SHORT).show();
-   
             return;
         }
-        
 
-        WebMessagePortCompat[] channel = WebViewCompat.createWebMessageChannel(webView);
-        WebMessagePortCompat localPort = channel[0];
-        WebMessagePortCompat jsPort = channel[1];
-
-        // 1. Open file stream asynchronously
+        // 1. Open file stream asynchronously, then register channel & send port to JS
         ioExecutor.execute(() -> {
+            boolean success = false;
             try {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     // API 29+ — MediaStore, zero permissions needed
@@ -82,6 +77,7 @@ public class BinaryStreamManager {
 
                     fileStreams.put(fileName, os);
                     fileUris.put(fileName, uri);
+                    success = true;
 
                 } else {
                     // API 21-28 — direct file access
@@ -93,6 +89,7 @@ public class BinaryStreamManager {
                     File file = new File(dir, fileName);
                     FileOutputStream fos = new FileOutputStream(file, true);
                     legacyStreams.put(fileName, fos);
+                    success = true;
                 }
 
                 Log.d("YTPRO_STREAM", "Stream opened for: " + fileName);
@@ -100,67 +97,74 @@ public class BinaryStreamManager {
             } catch (Exception e) {
                 Log.e("YTPRO_STREAM", "Failed to open stream: " + e.getMessage());
             }
-        });
 
-        // 2. This port only listens for chunks belonging to THIS file
-        localPort.setWebMessageCallback(new WebMessagePortCompat.WebMessageCallbackCompat() {
-            @Override
-            public void onMessage(WebMessagePortCompat port, WebMessageCompat message) {
-                ioExecutor.execute(() -> {
-                    if (message.getType() == WebMessageCompat.TYPE_ARRAY_BUFFER) {
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                OutputStream os = fileStreams.get(fileName);
-                                if (os != null) os.write(message.getArrayBuffer());
-                            } else {
-                                FileOutputStream fos = legacyStreams.get(fileName);
-                                if (fos != null) fos.write(message.getArrayBuffer());
+            if (!success) return;
+
+            // 2. Stream is ready — post channel creation and port delivery to UI thread
+            webView.post(() -> {
+                WebMessagePortCompat[] channel = WebViewCompat.createWebMessageChannel(webView);
+                WebMessagePortCompat localPort = channel[0];
+                WebMessagePortCompat jsPort = channel[1];
+
+                localPort.setWebMessageCallback(new WebMessagePortCompat.WebMessageCallbackCompat() {
+                    @Override
+                    public void onMessage(WebMessagePortCompat port, WebMessageCompat message) {
+                        ioExecutor.execute(() -> {
+                            if (message.getType() == WebMessageCompat.TYPE_ARRAY_BUFFER) {
+                                try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                        OutputStream os = fileStreams.get(fileName);
+                                        if (os != null) os.write(message.getArrayBuffer());
+                                    } else {
+                                        FileOutputStream fos = legacyStreams.get(fileName);
+                                        if (fos != null) fos.write(message.getArrayBuffer());
+                                    }
+                                } catch (Exception e) {
+                                    Log.e("YTPRO_STREAM", "Write failed: " + e.getMessage());
+                                }
+
+                            } else if (message.getType() == WebMessageCompat.TYPE_STRING
+                                    && "END".equals(message.getData())) {
+                                try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                                        OutputStream os = fileStreams.remove(fileName);
+                                        if (os != null) {
+                                            os.flush();
+                                            os.close();
+                                        }
+                                        // Mark file as visible
+                                        Uri uri = fileUris.remove(fileName);
+                                        if (uri != null) {
+                                            ContentValues values = new ContentValues();
+                                            values.put(MediaStore.Downloads.IS_PENDING, 0);
+                                            context.getContentResolver().update(uri, values, null, null);
+                                        }
+                                    } else {
+                                        FileOutputStream fos = legacyStreams.remove(fileName);
+                                        if (fos != null) {
+                                            fos.flush();
+                                            fos.close();
+                                        }
+                                    }
+
+                                    port.close();
+                                    Log.d("YTPRO_STREAM", "Stream finished for: " + fileName);
+
+                                } catch (Exception e) {
+                                    Log.e("YTPRO_STREAM", "Close failed: " + e.getMessage());
+                                }
                             }
-                        } catch (Exception e) {
-                            Log.e("YTPRO_STREAM", "Write failed: " + e.getMessage());
-                        }
-
-                    } else if (message.getType() == WebMessageCompat.TYPE_STRING
-                            && "END".equals(message.getData())) {
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                                OutputStream os = fileStreams.remove(fileName);
-                                if (os != null) {
-                                    os.flush();
-                                    os.close();
-                                }
-                                // Mark file as visible
-                                Uri uri = fileUris.remove(fileName);
-                                if (uri != null) {
-                                    ContentValues values = new ContentValues();
-                                    values.put(MediaStore.Downloads.IS_PENDING, 0);
-                                    context.getContentResolver().update(uri, values, null, null);
-                                }
-                            } else {
-                                FileOutputStream fos = legacyStreams.remove(fileName);
-                                if (fos != null) {
-                                    fos.flush();
-                                    fos.close();
-                                }
-                            }
-
-                            port.close();
-                            Log.d("YTPRO_STREAM", "Stream finished for: " + fileName);
-
-                        } catch (Exception e) {
-                            Log.e("YTPRO_STREAM", "Close failed: " + e.getMessage());
-                        }
+                        });
                     }
                 });
-            }
-        });
 
-        // 3. Send the port back to JS tagged with the filename
-        WebViewCompat.postWebMessage(
-                webView,
-                new WebMessageCompat("PORT_FOR:" + fileName, new WebMessagePortCompat[]{jsPort}),
-                Uri.EMPTY
-        );
+                WebViewCompat.postWebMessage(
+                        webView,
+                        new WebMessageCompat("PORT_FOR:" + fileName, new WebMessagePortCompat[]{jsPort}),
+                        Uri.EMPTY
+                );
+            });
+        });
     }
 
     // Returns the Uri for a file already written by this app (for muxer input)

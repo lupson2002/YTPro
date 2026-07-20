@@ -32,7 +32,7 @@ try {
 	// Gemini 기능은 gemini.google.com 만 호출하므로 호스트 고정.
 	java.net.URL u = new java.net.URL(url);
 	String host = u.getHost();
-	if (host == null || !host.endsWith("gemini.google.com")) {
+	if (host == null || (!host.equals("gemini.google.com") && !host.endsWith(".gemini.google.com"))) {
 		return new JSONObject();
 	}
 

@@ -131,13 +131,26 @@ public class ForegroundService extends Service {
     }
 
 
+    private Bitmap decodeBase64Bitmap(String icon) {
+        if (icon == null || icon.trim().isEmpty()) {
+            return null;
+        }
+        try {
+            byte[] decodedBytes = Base64.decode(icon, Base64.DEFAULT);
+            if (decodedBytes != null && decodedBytes.length > 0) {
+                return BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+            }
+        } catch (Exception e) {
+            Log.e("YTPRO_FS", "Failed to decode base64 icon: " + e.getMessage());
+        }
+        return null;
+    }
+
     public void updateNotification(String icon, String title, String subtitle, String action, long duration, long currentPosition) {
 
         Context cont=getApplicationContext();
 
-        byte[] decodedBytes = Base64.decode(icon, Base64.DEFAULT);
-        Bitmap largeIcon = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
-
+        Bitmap largeIcon = decodeBase64Bitmap(icon);
 
         int playbackState;
         if("pause".equals(action)){
@@ -195,12 +208,10 @@ public class ForegroundService extends Service {
 
         }
 
-
-
-        notificationManager.notify(1, builder.build());
+        if (notificationManager != null) {
+            notificationManager.notify(1, builder.build());
+        }
     }
-
-
 
     private void registerUpdateReceiver() {
         updateReceiver = new BroadcastReceiver() {
@@ -261,8 +272,7 @@ public class ForegroundService extends Service {
         String subtitle = intent.getStringExtra("subtitle");
         String icon = intent.getStringExtra("icon");
 
-        byte[] decodedBytes = Base64.decode(icon, Base64.DEFAULT);
-        Bitmap largeIcon = BitmapFactory.decodeByteArray(decodedBytes, 0, decodedBytes.length);
+        Bitmap largeIcon = decodeBase64Bitmap(icon);
 
         Intent openAppIntent = new Intent(this, MainActivity.class);
         openAppIntent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -306,7 +316,11 @@ public class ForegroundService extends Service {
         updateMediaSessionMetadata(title, subtitle, largeIcon, duration);
         updatePlaybackState(currentPosition, playbackState);
 
-        startForeground(1, notification);
+        if (Build.VERSION.SDK_INT >= 34) {
+            startForeground(1, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+        } else {
+            startForeground(1, notification);
+        }
     }
     
     

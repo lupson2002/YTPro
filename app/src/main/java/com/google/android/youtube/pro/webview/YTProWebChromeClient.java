@@ -31,7 +31,7 @@ public class YTProWebChromeClient extends WebChromeClient {
 
     @Override
     public Bitmap getDefaultVideoPoster() {
-       return BitmapFactory.decodeResource(activity.getApplicationContext().getResources(), 2130837573);
+       return BitmapFactory.decodeResource(activity.getApplicationContext().getResources(), R.mipmap.app_icon);
     }
 
     @Override

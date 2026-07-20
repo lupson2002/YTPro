@@ -203,6 +203,11 @@ public class MainActivity extends Activity {
    
 
     private void setupReceiver() {
+        if (broadcastReceiver != null) {
+            try {
+                unregisterReceiver(broadcastReceiver);
+            } catch (Exception ignored) {}
+        }
         broadcastReceiver = new MediaCommandReceiver(web);
         if (Build.VERSION.SDK_INT >= 34 && getApplicationInfo().targetSdkVersion >= 34) {
             registerReceiver(broadcastReceiver, new IntentFilter("TRACKS_TRACKS"), RECEIVER_EXPORTED);

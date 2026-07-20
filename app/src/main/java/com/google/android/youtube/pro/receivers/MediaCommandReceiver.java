@@ -16,9 +16,10 @@ public class MediaCommandReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent.getExtras() == null) return;
+        if (intent == null || intent.getExtras() == null) return;
         
         String action = intent.getExtras().getString("actionname");
+        if (action == null) return;
         Log.e("Action MainActivity", action);
 
         switch (action) {
@@ -35,7 +36,15 @@ public class MediaCommandReceiver extends BroadcastReceiver {
                 web.evaluateJavascript("playPrev();", null);
                 break;
             case "SEEKTO":
-                web.evaluateJavascript("seekTo('" + intent.getExtras().getString("pos") + "');", null);
+                String posRaw = intent.getExtras().getString("pos");
+                if (posRaw != null) {
+                    try {
+                        double pos = Double.parseDouble(posRaw);
+                        web.evaluateJavascript("seekTo(" + pos + ");", null);
+                    } catch (NumberFormatException e) {
+                        Log.e("MediaCommandReceiver", "Invalid seek pos: " + posRaw);
+                    }
+                }
                 break;
         }
     }
