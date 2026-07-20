@@ -184,10 +184,24 @@ public class YTProWebViewClient extends WebViewClient {
 	
 	@Override
 	public void onPageFinished(WebView view, String url) {
+		// 🔒 백그라운드 오디오: YouTube 웹이 화면 꺼짐/백그라운드를 document.hidden/visibilitychange 로
+		// 감지해 재생을 멈추지 못하도록 Page Visibility API 를 우회(항상 visible 로 고정 + 이벤트 차단).
+		// CDN 스크립트보다 먼저 주입하여 YT 플레이어가 visibility 를 읽기 전에 적용.
+		web.evaluateJavascript(
+			"(function(){try{"
+			+ "Object.defineProperty(document,'hidden',{get:function(){return false;},configurable:true});"
+			+ "Object.defineProperty(document,'webkitHidden',{get:function(){return false;},configurable:true});"
+			+ "Object.defineProperty(document,'visibilityState',{get:function(){return 'visible';},configurable:true});"
+			+ "Object.defineProperty(document,'webkitVisibilityState',{get:function(){return 'visible';},configurable:true});"
+			+ "var block=function(e){try{e.stopImmediatePropagation();e.preventDefault();}catch(x){}};"
+			+ "['visibilitychange','webkitvisibilitychange','mozvisibilitychange','msvisibilitychange'].forEach(function(t){"
+			+ "window.addEventListener(t,block,true);document.addEventListener(t,block,true);});"
+			+ "}catch(e){}})();", null);
 		web.evaluateJavascript("if (window.trustedTypes && window.trustedTypes.createPolicy && !window.trustedTypes.defaultPolicy) {window.trustedTypes.createPolicy('default', {createHTML: (string) => string,createScriptURL: string => string, createScript: string => string, });}", null);
-		web.evaluateJavascript("(function () { var script = document.createElement('script'); script.src='https://youtube.com/ytpro_cdn/npm/ytpro@latest'; document.body.appendChild(script);  })();", null);
-		web.evaluateJavascript("(function () { var script = document.createElement('script'); script.src='https://youtube.com/ytpro_cdn/npm/ytpro@latest/bgplay.js'; document.body.appendChild(script);  })();", null);
-		web.evaluateJavascript("(function () { var script = document.createElement('script');script.type='module';script.src='https://youtube.com/ytpro_cdn/npm/ytpro@latest/innertube.js'; document.body.appendChild(script);  })();", null);
+		// 🔒 보안: @latest → 고정 버전(공급망: npm 계정 탈취 시 자동 악성코드 주입 방지). 버전 올릴 때만 갱신.
+		web.evaluateJavascript("(function () { var script = document.createElement('script'); script.src='https://youtube.com/ytpro_cdn/npm/ytpro@3.9.80'; document.body.appendChild(script);  })();", null);
+		web.evaluateJavascript("(function () { var script = document.createElement('script'); script.src='https://youtube.com/ytpro_cdn/npm/ytpro@3.9.80/bgplay.js'; document.body.appendChild(script);  })();", null);
+		web.evaluateJavascript("(function () { var script = document.createElement('script');script.type='module';script.src='https://youtube.com/ytpro_cdn/npm/ytpro@3.9.80/innertube.js'; document.body.appendChild(script);  })();", null);
 		
 		
 		

@@ -14,6 +14,24 @@ var script = document.createElement('script'); script.src="//youtube.com/ytpro_c
 }
 /**/
 
+/*🔒 백그라운드 오디오 우회(안전망) — YouTube 웹이 document.hidden/visibilitychange 로 화면 꺼짐을 감지해
+  재생을 멈추는 것을 차단. YTProWebViewClient.onPageFinished 에서도 주입하지만, SPA 네비/재주입 시
+  재적용 보강. 항상 visible 로 고정 + visibilitychange 계열 이벤트 전파 차단.*/
+if(!window.__ytproVisOverride){
+window.__ytproVisOverride=true;
+try{
+Object.defineProperty(document,'hidden',{get:()=>false,configurable:true});
+Object.defineProperty(document,'webkitHidden',{get:()=>false,configurable:true});
+Object.defineProperty(document,'visibilityState',{get:()=>'visible',configurable:true});
+Object.defineProperty(document,'webkitVisibilityState',{get:()=>'visible',configurable:true});
+var __ytproVisBlock=(e)=>{try{e.stopImmediatePropagation();e.preventDefault();}catch(x){}};
+['visibilitychange','webkitvisibilitychange','mozvisibilitychange','msvisibilitychange'].forEach((t)=>{
+window.addEventListener(t,__ytproVisBlock,true);
+document.addEventListener(t,__ytproVisBlock,true);
+});
+}catch(e){}
+}
+
 if(!YTProVer){
 
 /*Few Stupid Inits*/
@@ -220,26 +238,39 @@ subtree: true
 }
 
 
-/*Add Settings Tab*/
+/*Add Settings Tab — position:fixed 우측상단 + body 직접 부착.
+  이전엔 position 없이 z-index 만 지정(CSS 규칙상 position 없으면 z-index 무시) +
+  ytm-home-logo(모바일 헤더) 앵커 의존 → 대형 화면에서 헤더 오버레이가 아이콘을 덮어 클릭 안 됨.
+  fixed/top-right + 최대 z-index 로 모든 화면 크기에서 항상 클릭 가능.*/
 var addSettingsTab=()=>{
 if(document.getElementById("setDiv") == null){
 var setDiv=document.createElement("div");
 setDiv.setAttribute("style",`
-z-index:9999999999;
+position:fixed !important;
+top:10px !important;
+right:12px !important;
+z-index:2147483647 !important;
+width:42px;
+height:42px;
 font-size:22px;
 text-align:center;
-line-height:35px;
+line-height:42px;
 pointer-events:auto;
+display:flex;
+align-items:center;
+justify-content:center;
+opacity:0.9;
 `);
 setDiv.setAttribute("id","setDiv");
 var svg=document.createElement("ytm-pivot-bar-item-renderer");
 svg.innerHTML=`<svg fill="${ window.location.href.indexOf("watch") < 0 ? c : "#fff" }" xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"  id="hSett"><path d="M12.844 1h-1.687a2 2 0 00-1.962 1.616 3 3 0 01-3.92 2.263 2 2 0 00-2.38.891l-.842 1.46a2 2 0 00.417 2.507 3 3 0 010 4.525 2 2 0 00-.417 2.507l.843 1.46a2 2 0 002.38.892 3.001 3.001 0 013.918 2.263A2 2 0 0011.157 23h1.686a2 2 0 001.963-1.615 3.002 3.002 0 013.92-2.263 2 2 0 002.38-.892l.842-1.46a2 2 0 00-.418-2.507 3 3 0 010-4.526 2 2 0 00.418-2.508l-.843-1.46a2 2 0 00-2.38-.891 3 3 0 01-3.919-2.263A2 2 0 0012.844 1Zm-1.767 2.347a6 6 0 00.08-.347h1.687a4.98 4.98 0 002.407 3.37 4.98 4.98 0 004.122.4l.843 1.46A4.98 4.98 0 0018.5 12a4.98 4.98 0 001.716 3.77l-.843 1.46a4.98 4.98 0 00-4.123.4A4.979 4.979 0 0012.843 21h-1.686a4.98 4.98 0 00-2.408-3.371 4.999 4.999 0 00-4.12-.399l-.844-1.46A4.979 4.979 0 005.5 12a4.98 4.98 0 00-1.715-3.77l.842-1.459a4.98 4.98 0 004.123-.399 4.981 4.981 0 002.327-3.025ZM16 12a4 4 0 11-7.999 0 4 4 0 018 0Zm-4 2a2 2 0 100-4 2 2 0 000 4Z"></path></svg>
 `;
 setDiv.appendChild(svg);
-insertAfter(document.getElementsByTagName("ytm-home-logo")[0],setDiv)
-if(document.getElementById("hSett") != null){
-document.getElementById("hSett").addEventListener("click",
-function(ev){
+document.body.appendChild(setDiv);
+var h=document.getElementById("hSett");
+if(h){
+h.addEventListener("click", function(ev){
+ev.preventDefault(); ev.stopPropagation();
 window.location.hash="settings";
 });
 }
@@ -416,7 +447,7 @@ left:calc(15% / 2 );padding-left:10px;padding-right:10px;
 z-index:99999999999999;text-align:center;border-radius:25px;
 color:white;text-align:center;
 `);
-sSDiv.innerHTML=`<span style="height:30px;line-height:30px;margin-top:10px;display:block;font-family:monospace;font-size:16px;float:left;">Skipped Sponsor</span>
+sSDiv.innerHTML=`<span style="height:30px;line-height:30px;margin-top:10px;display:block;font-family:monospace;font-size:16px;float:left;">스폰서 구간 건너뜀</span>
 <span style="height:30px;line-height:44px;float:right;padding-right:30px;margin-top:10px;display:block;padding-left:30px;border-left:1px solid white;">
 <svg data-action="rewind" xmlns="http://www.w3.org/2000/svg" width="23" height="23" style="margin-top:0px;" fill="currentColor" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M8 3a5 5 0 1 1-4.546 2.914.5.5 0 0 0-.908-.417A6 6 0 1 0 8 2v1z"/>
@@ -453,21 +484,26 @@ fDislikes(window.location.href);
 checkSponsors(window.location.href);
 
 
-if((window.location.pathname.indexOf("watch") > -1) || (window.location.pathname.indexOf("shorts") > -1)){
-var unV=setInterval(() => {
-
-
-/*Unmute The Video*/ 
-
-document.getElementsByClassName('video-stream')[0].muted=false;
-
-if(!document.getElementsByClassName('video-stream')[0].muted){
-clearInterval(unV);
-
+/*Unmute The Video — persistent (광고/화질전환/풀스크린/SPA 이동 시 YT가 재음소거해도 계속 해제).
+  원래 1회 성공 후 clearInterval 해서 재음소거 시 소리 안 들림 문제 + .video-stream 미생성 시
+  undefined.muted TypeError 를 모두 수정. 본 앱은 백그라운드 재생용이므로 element 의 muted 는
+  항상 false 로 강제(실제 음량은 Android STREAM_MUSIC 으로 제어).*/
+function ytproEnsureUnmute(){
+try{
+var v=document.getElementsByClassName('video-stream')[0];
+if(v && v.muted){ v.muted=false; }
+}catch(e){}
 }
-
-}, 5);
-
+if(!window.__ytproUnmuteWired){
+window.__ytproUnmuteWired=true;
+/*캡처 단계에서 video 요소의 음소거 이벤트를 즉시 해제 — YT 플레이어가 muted=true 로 되돌려도 복구*/
+document.addEventListener('volumechange', ytproEnsureUnmute, true);
+document.addEventListener('loadstart', ytproEnsureUnmute, true);
+document.addEventListener('play', ytproEnsureUnmute, true);
+document.addEventListener('loadedmetadata', ytproEnsureUnmute, true);
+/*안전망: 2초 간격으로 음소거 시 해제(SPA 네비/새 video 요소 등 커버)*/
+setInterval(ytproEnsureUnmute, 2000);
+ytproEnsureUnmute();
 }
 
 /*Funtion to set Element Styles*/
@@ -513,7 +549,7 @@ return t;
 
 /*Get Codecs*/
 function getYTPROCodecs(){
-var t=`<p style="text-align:center;font-size:14px;">This feature is experimental , this may break YTPro if not configured correctly. By default all the codecs are enabled , tap on the buttons below to switch them.</p><br> <vc  style="font-size:14px;">Video Codecs</vc><br>`;
+var t=`<p style="text-align:center;font-size:14px;">이 기능은 실험적이며, 잘못 설정하면 YTPro가 작동하지 않을 수 있습니다. 기본적으로 모든 코덱이 활성화되어 있으며, 아래 버튼을 눌러 켜고 끌 수 있습니다.</p><br> <vc  style="font-size:14px;">비디오 코덱</vc><br>`;
 
 for(var y in YTPROCodecs.video){
 
@@ -526,7 +562,7 @@ t+=`<button data-action="setRemoveCodec" data-value="${x}" ${("true" == localSto
 </button>`;
 }
 
-t+=`<br><br><vc  style="font-size:14px">Audio Codecs</vc><br>`
+t+=`<br><br><vc  style="font-size:14px">오디오 코덱</vc><br>`
 for(var y in YTPROCodecs.audio){
 
 var x=YTPROCodecs.audio[y];
@@ -541,7 +577,7 @@ t+=`<button data-action="setRemoveCodec" data-value="${x}" ${("true" == localSto
 t+=`<br><br>
 <div>Block 60FPS <span data-action="block_60fps" style="${sttCnf(0,0,"block_60fps")}" ><b style="${sttCnf(0,1,"block_60fps")}" ></b></span></div> `;
 
-t+=`<br><br><button data-action="done" style="margin-top:10px;width:25%;float:right;text-align:center;background:${c};color:${dc};" >Done</button>`;
+t+=`<br><br><button data-action="done" style="margin-top:10px;width:25%;float:right;text-align:center;background:${c};color:${dc};" >완료</button>`;
 
 
 return t;
@@ -714,13 +750,13 @@ margin-right:2%;
 color:${c};
 }
 </style>`;
-ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
+ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO 설정</b>
 <span style="font-size:10px">v${YTProVer}</span>
 <br><br>
 <div data-action="follow" style="min-height:35px;height:auto;width:95%;margin:auto;background:#ee2a7b44;border-radius:30px;margin-bottom:15px;border:1px solid #ee2a7b;display:flex;padding:5px;gap:8px;">
 
 <img style="flex-shrink: 0;height:40px;width:40px;border-radius:50%;" src="https://raw.githubusercontent.com/prateek-chaubey/YTPro/refs/heads/main/.github/img/habitius.webp" >
-<div style="display:flex;flex-direction:column;align-items:flex-start;height:100%;width:auto;flex-shrink:0;font-size:14px;background:re;padding:0;"><b>Please follow Habitius on Instagram</b>For daily habit,lifestyle and health tips </div>
+<div style="display:flex;flex-direction:column;align-items:flex-start;height:100%;width:auto;flex-shrink:0;font-size:14px;background:re;padding:0;"><b>Instagram에서 Habitius 팔로우해주세요</b>매일 습관·라이프스타일·건강 팁 </div>
 
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
@@ -728,69 +764,69 @@ ytpSetI.innerHTML+=`<br><b style='font-size:18px' >YT PRO Settings</b>
 
 </div>
 
-<div><input type="url" placeholder="Enter Youtube URL" id="ytproUrlInput" ></div>
+<div><input type="url" placeholder="유튜브 URL 입력" id="ytproUrlInput" ></div>
 <br>
-<button data-action="hearts">Liked Videos
+<button data-action="hearts">좋아요한 영상
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg>
 </button>
 <br>
-<button data-action="checkUpdate">Check for Updates
+<button data-action="checkUpdate">업데이트 확인
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}"  viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg>
 </button>
 <br>
-<div>Autoskip Sponsors <span data-action="sttCnf" data-value="autoSpn" style="${sttCnf(0,0,"autoSpn")}" ><b style="${sttCnf(0,1,"autoSpn")}"></b></span></div>
+<div>스폰서 자동 건너뛰기 <span data-action="sttCnf" data-value="autoSpn" style="${sttCnf(0,0,"autoSpn")}" ><b style="${sttCnf(0,1,"autoSpn")}"></b></span></div>
 <br>
-<div>Gesture Controls <span data-action="sttCnf" data-value="gesC" style="${sttCnf(0,0,"gesC")}" ><b style="${sttCnf(0,1,"gesC")}"></b></span></div>
+<div>제스처 컨트롤 <span data-action="sttCnf" data-value="gesC" style="${sttCnf(0,0,"gesC")}" ><b style="${sttCnf(0,1,"gesC")}"></b></span></div>
 <br>
-<div>Miniplayer Gesture <span data-action="sttCnf" data-value="gesM" style="${sttCnf(0,0,"gesM")}" ><b style="${sttCnf(0,1,"gesM")}"></b></span></div>
+<div>미니플레이어 제스처 <span data-action="sttCnf" data-value="gesM" style="${sttCnf(0,0,"gesM")}" ><b style="${sttCnf(0,1,"gesM")}"></b></span></div>
 <br>
-<div>Force Zoom <span data-action="sttCnf" data-value="fzoom"  style="${sttCnf(0,0,"fzoom")}" ><b style="${sttCnf(0,1,"fzoom")}" ></b></span></div> 
+<div>강제 줌 <span data-action="sttCnf" data-value="fzoom"  style="${sttCnf(0,0,"fzoom")}" ><b style="${sttCnf(0,1,"fzoom")}" ></b></span></div>
 <br>
-<div>Background Play <span data-action="sttCnf" data-value="bgplay" style="${sttCnf(0,0,"bgplay")}" ><b style="${sttCnf(0,1,"bgplay")}" ></b></span></div> 
+<div>백그라운드 재생 <span data-action="sttCnf" data-value="bgplay" style="${sttCnf(0,0,"bgplay")}" ><b style="${sttCnf(0,1,"bgplay")}" ></b></span></div>
 <br>
-<div>Hide Shorts <span data-action="sttCnf" data-value="shorts" style="${sttCnf(0,0,"shorts")}" ><b style="${sttCnf(0,1,"shorts")}" ></b></span></div> 
+<div>쇼츠 숨기기 <span data-action="sttCnf" data-value="shorts" style="${sttCnf(0,0,"shorts")}" ><b style="${sttCnf(0,1,"shorts")}" ></b></span></div>
 <br>
-<div>Use single Gemini chat <span data-action="sttCnf" data-value="saveCInfo" style="${sttCnf(0,0,"saveCInfo")}" ><b style="${sttCnf(0,1,"saveCInfo")}"></b></span></div>
+<div>단일 Gemini 채팅 사용 <span data-action="sttCnf" data-value="saveCInfo" style="${sttCnf(0,0,"saveCInfo")}" ><b style="${sttCnf(0,1,"saveCInfo")}"></b></span></div>
 <br>
-<button data-action="geminiModels">Select Gemini Model
+<button data-action="geminiModels">Gemini 모델 선택
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg>
 </button>
 <br>
-<button data-action="geminiPrompt">Edit Gemini Prompt
+<button data-action="geminiPrompt">Gemini 프롬프트 편집
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg>
 </button>
 <br>
-<button data-action="disableCodecs">Disable Codecs
+<button data-action="disableCodecs">코덱 비활성화
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg>
 </button>
 <br>
-<button data-action="issues">Report Bugs
+<button data-action="issues">버그 신고
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg>
 </button>
 <br>
-<button style="font-weight:bolder;" data-action="sponsor">Become a Sponsor
+<button style="font-weight:bolder;" data-action="sponsor">스폰서 되기
 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="${isD ? "#ccc" : "#444"}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M5 2l6 6-6 6"/>
 </svg>
 
 </button>
 <br>
-<div>Developer Mode <span data-action="sttCnf" data-value="devMode" style="${sttCnf(0,0,"devMode")}" ><b style="${sttCnf(0,1,"devMode")}"></b></span></div>
+<div>개발자 모드 <span data-action="sttCnf" data-value="devMode" style="${sttCnf(0,0,"devMode")}" ><b style="${sttCnf(0,1,"devMode")}"></b></span></div>
 <br><br>
-<p style="font-size:1.25rem;width:calc(100% - 20px);margin:auto;text-align:left"><b style="font-weight:bold">Disclaimer</b>: This is an educational project aimed at showcasing javascript injection into a webview to enhance productivity.<br>
-You can find the source code at <a href="https://www.youtube.com/redirect?q=https://github.com/prateek-chaubey/YTPRO" style="font-family:monospace;" > https://github.com/prateek-chaubey/YTPRO</a>
+<p style="font-size:1.25rem;width:calc(100% - 20px);margin:auto;text-align:left"><b style="font-weight:bold">면책 고지</b>: 이 프로젝트는 웹뷰에 자바스크립트를 주입해 생산성을 높이는 교육용 프로젝트입니다.<br>
+소스코드는 다음에서 확인할 수 있습니다: <a href="https://www.youtube.com/redirect?q=https://github.com/prateek-chaubey/YTPRO" style="font-family:monospace;" > https://github.com/prateek-chaubey/YTPRO</a>
 <br><br></p><br><br><br>
 
 <div class="geminiModels">
@@ -804,7 +840,7 @@ You can find the source code at <a href="https://www.youtube.com/redirect?q=http
 ${localStorage.getItem("prompt")}
 </textarea>
 
-<button data-action="savePrompt" style="margin-top:10px;width:25%;float:right;text-align:center;background:${c};color:${dc};" >Save</button>
+<button data-action="savePrompt" style="margin-top:10px;width:25%;float:right;text-align:center;background:${c};color:${dc};" >저장</button>
 <br><br>
 </div>
 
@@ -815,16 +851,16 @@ ${localStorage.getItem("prompt")}
 
 
 <div class="credit" >
-<z style="margin-right:6px">Made with </z>
+<z style="margin-right:6px">제작: </z>
 
 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#fff" viewBox="-1 -1 18 18">
-<path fill-rule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314" 
+<path fill-rule="evenodd" d="M8 1.314C12.438-3.248 23.534 4.735 8 15-7.534 4.736 3.562-3.248 8 1.314"
 stroke="black" ${ !isD ? "stroke-width='1'" : "" } stroke-linejoin="round" stroke-linecap="round"/>
 </svg>
 
 
 
-<z style="margin-left:6px">by Prateek Chaubey</z>
+<z style="margin-left:6px">Prateek Chaubey</z>
 </div>
 `;
 
@@ -1430,7 +1466,7 @@ converter.setFlavor('github');
 let html = modifyTimestamps(converter.makeHtml(text));
 
 
-let thoughtsHtml=(thoughts != null) ? `<button onclick="(this.nextElementSibling.style.height=='auto') ? (this.children[0].style.transform='rotate(-90deg)',this.nextElementSibling.style.height='0') : (this.children[0].style.transform='rotate(90deg)',this.nextElementSibling.style.height='auto');" class="think" >Show Thinking 
+let thoughtsHtml=(thoughts != null) ? `<button onclick="(this.nextElementSibling.style.height=='auto') ? (this.children[0].style.transform='rotate(-90deg)',this.nextElementSibling.style.height='0') : (this.children[0].style.transform='rotate(90deg)',this.nextElementSibling.style.height='auto');" class="think" >생각 보기 
 <svg xmlns="http://www.w3.org/2000/svg" style="transform:rotate(-90deg);margin-left:10px" width="16" height="16" fill="${isD ? "#ccc" : "#444"}" viewBox="0 0 16 16">
 <path fill-rule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708"/>
 </svg></button>
@@ -1441,7 +1477,7 @@ ${converter.makeHtml(thoughts)}
 
 </div><br>` : "";
 
-document.getElementById("GeminiResponse").innerHTML=`<a href="https://gemini.google.com/chat/${chat[0].replace("c_","")}" >Go to the chat</a><br><br>
+document.getElementById("GeminiResponse").innerHTML=`<a href="https://gemini.google.com/chat/${chat[0].replace("c_","")}" >채팅으로 이동</a><br><br>
 
 ${thoughtsHtml}
 
@@ -1482,10 +1518,10 @@ var cookies=Android.getAllCookies(window.location.href);
 if(cookies.indexOf("__Secure-1PSID=") < 0){
 GeminiRes.innerHTML=`
 <center style="margin-top:15px">
-<span >Sign in to use Gemini<span>
+<span >Gemini를 사용하려면 로그인하세요<span>
 <br><br>
 <a href="https://accounts.google.com/ServiceLogin?service=youtube" >
-<button style="background:${c};color:${isD ? "#000" : "#fff"};font-weight:500;height:35px;width:90px;border-radius:25px;text-align:center;line-height:35px;">Sign In</button>
+<button style="background:${c};color:${isD ? "#000" : "#fff"};font-weight:500;height:35px;width:90px;border-radius:25px;text-align:center;line-height:35px;">로그인</button>
 </a>
 <br><br>
 
@@ -1526,7 +1562,7 @@ Android.getSNlM0e(secured);
 GeminiAT=await callbackSNlM0e();
 
 var sd = document.createElement('script');
-sd.src="//youtube.com/ytpro_cdn/npm/showdown/dist/showdown.min.js";
+sd.src="//youtube.com/ytpro_cdn/npm/showdown@2.1.0/dist/showdown.min.js";
 document.body.appendChild(sd);
 
 }
@@ -1862,9 +1898,9 @@ geminiInfo();
 var ytproFavElem=document.createElement("div");
 sty(ytproFavElem);
 if(!isHeart()){
-ytproFavElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M0 0h24v24H0V0z" fill="none"/><path fill="${c}" d="M19.66 3.99c-2.64-1.8-5.9-.96-7.66 1.1-1.76-2.06-5.02-2.91-7.66-1.1-1.4.96-2.28 2.58-2.34 4.29-.14 3.88 3.3 6.99 8.55 11.76l.1.09c.76.69 1.93.69 2.69-.01l.11-.1c5.25-4.76 8.68-7.87 8.55-11.75-.06-1.7-.94-3.32-2.34-4.28zM12.1 18.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></svg><span style="margin-left:8px">Heart<span>`;
+ytproFavElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M0 0h24v24H0V0z" fill="none"/><path fill="${c}" d="M19.66 3.99c-2.64-1.8-5.9-.96-7.66 1.1-1.76-2.06-5.02-2.91-7.66-1.1-1.4.96-2.28 2.58-2.34 4.29-.14 3.88 3.3 6.99 8.55 11.76l.1.09c.76.69 1.93.69 2.69-.01l.11-.1c5.25-4.76 8.68-7.87 8.55-11.75-.06-1.7-.94-3.32-2.34-4.28zM12.1 18.55l-.1.1-.1-.1C7.14 14.24 4 11.39 4 8.5 4 6.5 5.5 5 7.5 5c1.54 0 3.04.99 3.57 2.36h1.87C13.46 5.99 14.96 5 16.5 5c2 0 3.5 1.5 3.5 3.5 0 2.89-3.14 5.74-7.9 10.05z"/></svg><span style="margin-left:8px">하트<span>`;
 }else{
-ytproFavElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M0 0h24v24H0V0z" fill="none"/><path fill="${c}" d="M13.35 20.13c-.76.69-1.93.69-2.69-.01l-.11-.1C5.3 15.27 1.87 12.16 2 8.28c.06-1.7.93-3.33 2.34-4.29 2.64-1.8 5.9-.96 7.66 1.1 1.76-2.06 5.02-2.91 7.66-1.1 1.41.96 2.28 2.59 2.34 4.29.14 3.88-3.3 6.99-8.55 11.76l-.1.09z"/></svg><span style="margin-left:8px">Heart<span>`;
+ytproFavElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="24" viewBox="0 0 24 24" width="24"><path d="M0 0h24v24H0V0z" fill="none"/><path fill="${c}" d="M13.35 20.13c-.76.69-1.93.69-2.69-.01l-.11-.1C5.3 15.27 1.87 12.16 2 8.28c.06-1.7.93-3.33 2.34-4.29 2.64-1.8 5.9-.96 7.66 1.1 1.76-2.06 5.02-2.91 7.66-1.1 1.41.96 2.28 2.59 2.34 4.29.14 3.88-3.3 6.99-8.55 11.76l-.1.09z"/></svg><span style="margin-left:8px">하트<span>`;
 }
 ytproMainDiv.appendChild(ytproFavElem);
 ytproFavElem.addEventListener("click",()=>{ytProHeart(ytproFavElem);});
@@ -1875,7 +1911,7 @@ ytproFavElem.addEventListener("click",()=>{ytProHeart(ytproFavElem);});
 var ytproDownVidElem=document.createElement("div");
 sty(ytproDownVidElem);
 ytproDownVidElem.style.width="140px";
-ytproDownVidElem.innerHTML=`${downBtn.replace('width="18"','width="24"').replace('height="18"','height="24"')}<span style="margin-left:2px">Download<span>`;
+ytproDownVidElem.innerHTML=`${downBtn.replace('width="18"','width="24"').replace('height="18"','height="24"')}<span style="margin-left:2px">다운로드<span>`;
 ytproMainDiv.appendChild(ytproDownVidElem);
 ytproDownVidElem.addEventListener("click",
 function(){
@@ -1886,7 +1922,7 @@ window.location.hash="download";
 var ytproPIPVidElem=document.createElement("div");
 sty(ytproPIPVidElem);
 ytproPIPVidElem.style.width="140px";
-ytproPIPVidElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 0 24 24" width="22"><path fill="${c}" d="M18 7h-6c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V8c0-.55-.45-1-1-1zm3-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm-1 16.01H4c-.55 0-1-.45-1-1V5.98c0-.55.45-1 1-1h16c.55 0 1 .45 1 1v12.03c0 .55-.45 1-1 1z"/></svg><span style="margin-left:8px">PIP Mode<span>`;
+ytproPIPVidElem.innerHTML=`<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 0 24 24" width="22"><path fill="${c}" d="M18 7h-6c-.55 0-1 .45-1 1v4c0 .55.45 1 1 1h6c.55 0 1-.45 1-1V8c0-.55-.45-1-1-1zm3-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm-1 16.01H4c-.55 0-1-.45-1-1V5.98c0-.55.45-1 1-1h16c.55 0 1 .45 1 1v12.03c0 .55-.45 1-1 1z"/></svg><span style="margin-left:8px">PIP 모드<span>`;
 ytproMainDiv.appendChild(ytproPIPVidElem);
 ytproPIPVidElem.addEventListener("click",
 function(){
@@ -2034,13 +2070,13 @@ history.back();
 
 
 if(localStorage.getItem("hearts") == null){
-ytproHh.innerHTML+="No Videos Found";
+ytproHh.innerHTML+="영상 없음";
 }else{
 
 var v=JSON.parse(localStorage.getItem("hearts"));
 
 if(Object.keys(v).length === 0){
-return ytproHh.innerHTML+="No Videos Found";
+return ytproHh.innerHTML+="영상 없음";
 }
 
 for(var n=Object.keys(v).length - 1; n >  -1 ; n--){
@@ -2144,8 +2180,8 @@ title:ytplayer.config.args.raw_player_response?.videoDetails?.title.replaceAll("
 
 
 var g="16";
-var h=`<span style="margin-left:8px">Heart<span>`;
-(window.location.href.indexOf('youtube.com/shorts') > -1) ? h=``:h=`<span style="margin-left:8px">Heart<span>`;
+var h=`<span style="margin-left:8px">하트<span>`;
+(window.location.href.indexOf('youtube.com/shorts') > -1) ? h=``:h=`<span style="margin-left:8px">하트<span>`;
 (window.location.href.indexOf('youtube.com/shorts') > -1) ? g="24" : g="24" ;
 
 
@@ -2601,36 +2637,45 @@ el.appendChild(elm);
 const targetNode = document.body;
 const config = { childList: true, subtree: true };
 
-const observer = new MutationObserver(() => {
-
-
+// ⚡ 성능 최적화: MutationObserver 콜백 쓰로틀.
+// body 전체 subtree 감시라 DOM 변경마다 콜백이 수십~수백 회/초 발화하여 UI 스레드 점유(Jank) 원인.
+// requestAnimationFrame 으로 프레임당 1회 병합 + 최소 150ms 간격으로 실행 빈도 제한.
+// 또한 getBoundingClientRect() 를 매 호출마다 2회(height/width) 읽던 강제 reflow 를 1회 캐시로 축소,
+// Android.fullScreen() 은 상태 변경 시에만 호출(중복 IPC 제거).
+var __ytproObsScheduled=false, __ytproObsLastRun=0, __ytproFsLast=null, __ytproObsMinInt=150;
+function ytproObsTick(){
+__ytproObsScheduled=false;
+var now=Date.now();
+if(now-__ytproObsLastRun < __ytproObsMinInt){
+setTimeout(ytproObsTick, __ytproObsMinInt-(now-__ytproObsLastRun));
+return;
+}
+__ytproObsLastRun=now;
+try{
 //speed
-
-extraSpeed(); 
-  
+extraSpeed();
 //ads Block
 adsBlock();
-
-
 //mE button
 addMaxButton();
-
 //settingsTab
 addSettingsTab();
-
-
-try{
-var video = document.getElementsByClassName('video-stream')[0];
-if(video.getBoundingClientRect().height > video.getBoundingClientRect().width){
-Android.fullScreen(true);
+// ⚡ reflow 최소화: getBoundingClientRect 1회만 호출(기존 2회 → 1회)
+var video=document.getElementsByClassName('video-stream')[0];
+if(video){
+var r=video.getBoundingClientRect();
+var wantFs=r.height>r.width;
+if(wantFs!==__ytproFsLast){ __ytproFsLast=wantFs; Android.fullScreen(wantFs); }
 }
-else{
-Android.fullScreen(false);
-}}
-catch{}
-
-
-});
+}catch(e){}
+}
+function ytproObsSchedule(){
+if(__ytproObsScheduled) return;
+__ytproObsScheduled=true;
+if(window.requestAnimationFrame) requestAnimationFrame(ytproObsTick);
+else setTimeout(ytproObsTick,16);
+}
+const observer = new MutationObserver(ytproObsSchedule);
 
 // Start observing changes in the body
 observer.observe(targetNode, config);
@@ -2647,21 +2692,21 @@ x.setAttribute("style",`height:100%;width:100%;position:fixed;display:grid;align
 
 x.innerHTML=`
 <div style="height:auto;width:70%;padding:20px;background:rgba(0,0,0,.6);border:1px solid #888;box-shadow:0px 0px 5px black;color:white;backdrop-filter:blur(10px);border-radius:15px;margin:auto">
-<h2> Mandatory Update </h2><br>
-Latest Version ${YTProVer} of YTPRO is available , update the YTPRO to get latest features.
-<br>- This update is mandatory as it fixes a ton of bugs and improves functionality <br>
-- Fixed Downloads, switched to SABR downloader<br>
-- Added muxing to the youtube videos<br>
-- Fixed gestures for brightness and volume control<br>
-- Optimized the UI of both Download and Settings menu<br>
-- Added speed increase upto 10x<br>
-- Fixed bugs and improved functionality<br>
-- for the full list <u data-action="url" >click here</u>
+<h2> 필수 업데이트 </h2><br>
+YTPRO 최신 버전 ${YTProVer} 사용 가능 — 최신 기능을 사용하려면 업데이트하세요.
+<br>- 이 업데이트는 필수이며, 다수의 버그 수정 및 기능 개선이 포함되어 있습니다 <br>
+- 다운로드 수정, SABR 다운로더로 전환<br>
+- 유튜브 영상 믹싱 기능 추가<br>
+- 밝기/볼륨 제스처 수정<br>
+- 다운로드·설정 메뉴 UI 최적화<br>
+- 최대 10배속 속도 증가 추가<br>
+- 버그 수정 및 기능 개선<br>
+- 전체 목록은 <u data-action="url" >여기 클릭</u>
 <br>
 <br>
 <div style="display:flex;">
-<!--<button style="border:0;border-radius:10px;height:30px;width:150px;background:;" data-action="cancel">Cancel</button>-->
-<button style="border:0;border-radius:10px;height:30px;width:150px;background:rgba(255,50,50,.7);float:right;" data-action="download" >Download</button>
+<!--<button style="border:0;border-radius:10px;height:30px;width:150px;background:;" data-action="cancel">취소</button>-->
+<button style="border:0;border-radius:10px;height:30px;width:150px;background:rgba(255,50,50,.7);float:right;" data-action="download" >다운로드</button>
 </div>
 
 </div>

@@ -28,6 +28,13 @@ private static final String GEMINI_URL = "https://gemini.google.com/app";
 
 public static JSONObject getStream(String url, String headers, String body) {
 try {
+	// 🔒 보안: JS 에서 임의 URL 로의 POST(헤더에 쿠키 포함 가능)를 막아 쿠키 탈취/외부 유출 차단.
+	// Gemini 기능은 gemini.google.com 만 호출하므로 호스트 고정.
+	java.net.URL u = new java.net.URL(url);
+	String host = u.getHost();
+	if (host == null || !host.endsWith("gemini.google.com")) {
+		return new JSONObject();
+	}
 
 
 HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();

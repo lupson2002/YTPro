@@ -16,6 +16,7 @@ import android.media.session.MediaSession;
 import android.media.session.PlaybackState;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 import android.util.Base64;
 import android.util.Log;
 
@@ -28,6 +29,8 @@ public class ForegroundService extends Service {
     private NotificationManager notificationManager;
     private BroadcastReceiver updateReceiver;
     private MediaSession mediaSession;
+    // 🔒 백그라운드 재생 중 CPU 잠들지 않도록 PARTIAL_WAKE_LOCK 유지(화면 꺼짐/잠금 시에도 오디오 끊김 방지)
+    private PowerManager.WakeLock wakeLock;
 
     @Override
     public void onCreate() {
@@ -35,6 +38,28 @@ public class ForegroundService extends Service {
         initMediaSession();
         registerUpdateReceiver();
         createNotificationChannel();
+        // 🔒 WakeLock 확보 — 서비스 생존 중 화면 꺼짐 시에도 JS 타이머·미디어 디코딩 유지.
+        try {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            if (pm != null) {
+                wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "YTPro:Playback");
+                wakeLock.setReferenceCounted(false);
+            }
+        } catch (Exception e) { Log.e("YTPRO_FS", "wakeLock create failed: " + e); }
+    }
+
+    /** 🔒 재생 시작/재개 시 WakeLock 취득. setReferenceCounted(false) 이므로 중복 acquire 무해. */
+    private void acquireWakeLock() {
+        try {
+            if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(/* 화면 꺼져도 서비스 종료까지 유지 */);
+        } catch (Exception e) { Log.e("YTPRO_FS", "wakeLock acquire failed: " + e); }
+    }
+
+    /** 🔒 재생 정지/서비스 종료 시 WakeLock 해제. */
+    private void releaseWakeLock() {
+        try {
+            if (wakeLock != null && wakeLock.isHeld()) wakeLock.release();
+        } catch (Exception e) { Log.e("YTPRO_FS", "wakeLock release failed: " + e); }
     }
 
 
@@ -217,15 +242,18 @@ public class ForegroundService extends Service {
         long duration = intent.getLongExtra("duration", 0);
         long currentPosition = intent.getLongExtra("currentPosition", 0);
         String action = intent.getStringExtra("action");
-        
+
         int playbackState;
         if("pause".equals(action)){
             playbackState= PlaybackState.STATE_PAUSED;
+            releaseWakeLock(); // 🔒 일시정지 시 CPU 깨움 불필요 → WakeLock 해제(배터리 절감)
         }
         else if("play".equals(action)){
             playbackState= PlaybackState.STATE_PLAYING;
+            acquireWakeLock(); // 🔒 재생 중 화면 꺼짐 대비 WakeLock 취득
         }else{
             playbackState= PlaybackState.STATE_BUFFERING;
+            acquireWakeLock(); // 🔒 버퍼링(시작)에도 CPU 유지
         }
         
         
@@ -323,6 +351,10 @@ public class ForegroundService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        releaseWakeLock(); // 🔒 서비스 종료 시 WakeLock 확실히 해제(누수 방지)
+        if (mediaSession != null) {
+            try { mediaSession.setActive(false); mediaSession.release(); } catch (Exception e) {}
+        }
         unregisterReceiver(updateReceiver);
     }
 

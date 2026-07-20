@@ -172,7 +172,7 @@ const safeTitle = info.basic_info.title.replace(/[\/\\?%*:|"<>]/g, '-');
 // Fallback size formatter just in case window.formatFileSize isn't ready
 const formatBytes = (bytes) => {
 if (window.formatFileSize) return window.formatFileSize(bytes);
-if (bytes === 0 || isNaN(bytes)) return "Unknown Size";
+if (bytes === 0 || isNaN(bytes)) return "크기 미상";
 const k = 1024;
 const sizes = ['Bytes', 'KB', 'MB', 'GB'];
 const i = Math.floor(Math.log(bytes) / Math.log(k));
@@ -661,7 +661,7 @@ if(!Android.hasStoragePermission()){
   return;
 }
 
-Android.showToast("Download Started");
+Android.showToast("다운로드 시작됨");
 
 
 const containerExt = isWebm == "true" ? 'webm' : 'mp4';
@@ -780,7 +780,7 @@ downloaderDiv.insertAdjacentHTML("beforeend",`
 
 var fileName=`${safeTitle}_video${new Date().getTime()}.${containerExt}`;
 
-var {elDetails,elProgress} = createProgreses("Video Stream");
+var {elDetails,elProgress} = createProgreses("비디오 스트림");
 
 await pipeToDisk(videoStream,fileName, estVideoBytes,elDetails,elProgress);
 
@@ -797,7 +797,7 @@ downloaderDiv.insertAdjacentHTML("beforeend",`
 <br><br><b>Title: ${safeTitle}</b><br>`)
 
 
-var {elDetails,elProgress} = createProgreses("Audio Stream");
+var {elDetails,elProgress} = createProgreses("오디오 스트림");
 
 var fileName=`${safeTitle}_audio${new Date().getTime()}.${containerExt}`;
 
@@ -821,8 +821,8 @@ downloaderDiv.insertAdjacentHTML("beforeend",`
 <br><br><b>Title: ${safeTitle}</b><br>`)
 
 
-var videoEl= createProgreses("Video Stream");
-var audioEl= createProgreses("Audio Stream");
+var videoEl= createProgreses("비디오 스트림");
+var audioEl= createProgreses("오디오 스트림");
 
 
 var videoFileName=`${safeTitle}_video${new Date().getTime()}.${containerExt}`;
@@ -895,9 +895,9 @@ if (!ytproDownDiv.contains(ev.target)) history.back();
 
 // Build tabs declaratively
 const TABS = [
-{ label: "Formats",    viewId: "videoViewDiv"    },
-{ label: "Thumbnails", viewId: "thumbViewDiv"    },
-{ label: "Captions",   viewId: "captionsViewDiv" },
+{ label: "포맷",    viewId: "videoViewDiv"    },
+{ label: "썸네일", viewId: "thumbViewDiv"    },
+{ label: "자막",   viewId: "captionsViewDiv" },
 ];
 
 const tabStyle = {

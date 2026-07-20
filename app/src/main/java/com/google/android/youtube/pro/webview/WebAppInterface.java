@@ -141,42 +141,47 @@ public class WebAppInterface {
 	public void bgStart(String iconn, String titlen, String subtitlen, long dura) {
 		icon = iconn; title = titlen; subtitle = subtitlen; duration = dura;
 		activity.isPlaying = true; activity.mediaSession = true;
-		
+		activity.armPipAutoEnter(true); // 🔻 API33+ 자동 PiP arm(홈 버튼 부드러운 전환)
 		Intent intent = new Intent(activity.getApplicationContext(), ForegroundService.class);
 		intent.putExtra("icon", icon); intent.putExtra("title", title);
 		intent.putExtra("subtitle", subtitle); intent.putExtra("duration", duration);
 		intent.putExtra("currentPosition", 0); intent.putExtra("action", "play");
 		activity.startService(intent);
 	}
-	
+
 	@JavascriptInterface
 	public void bgUpdate(String iconn, String titlen, String subtitlen, long dura) {
 		icon = iconn; title = titlen; subtitle = subtitlen; duration = dura;
 		activity.isPlaying = true;
+		activity.armPipAutoEnter(true);
 		sendUpdateBroadcast(0, "pause");
 	}
-	
+
 	@JavascriptInterface
 	public void bgStop() {
 		activity.isPlaying = false; activity.mediaSession = false;
+		activity.armPipAutoEnter(false); // 🔻 자동 PiP disarm
 		activity.stopService(new Intent(activity.getApplicationContext(), ForegroundService.class));
 	}
-	
+
 	@JavascriptInterface
 	public void bgPause(long ct) {
 		activity.isPlaying = false;
+		activity.armPipAutoEnter(false);
 		sendUpdateBroadcast(ct, "pause");
 	}
-	
+
 	@JavascriptInterface
 	public void bgPlay(long ct) {
 		activity.isPlaying = true;
+		activity.armPipAutoEnter(true);
 		sendUpdateBroadcast(ct, "play");
 	}
-	
+
 	@JavascriptInterface
 	public void bgBuffer(long ct) {
 		activity.isPlaying = true;
+		activity.armPipAutoEnter(true);
 		sendUpdateBroadcast(ct, "buffer");
 	}
 	
@@ -205,6 +210,19 @@ public class WebAppInterface {
 	
 	@JavascriptInterface
 	public String getAllCookies(String url) {
+		// 🔒 보안: 쿠키(구글 세션 토큰 포함) 탈취 방지 — youtube.com 계열 호스트만 허용.
+		// 페이지 내 어떤 스크립트든 Android.getAllCookies(임의url) 로 accounts.google.com 등의
+		// 인증 쿠키를 빼낼 수 없도록 화이트리스트 제한. innertube(www.youtube.com)·Gemini(현재 페이지=youtube) 만 필요.
+		if (url == null) return "";
+		try {
+			String host = Uri.parse(url).getHost();
+			if (host == null || !(host.equals("youtube.com") || host.equals("m.youtube.com")
+					|| host.equals("www.youtube.com"))) {
+				return "";
+			}
+		} catch (Exception e) {
+			return "";
+		}
 		return CookieManager.getInstance().getCookie(url);
 	}
 	
